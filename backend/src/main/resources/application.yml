@@ -1,0 +1,9 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: quant-portfolio-optimizer-backend
+
+quant-engine:
+  base-url: ${QUANT_ENGINE_BASE_URL:http://localhost:8001}
