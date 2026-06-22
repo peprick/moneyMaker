@@ -3,6 +3,7 @@ import {
   AlertCircle,
   BarChart3,
   Gauge,
+  Globe2,
   LineChart,
   Loader2,
   Play,
@@ -38,7 +39,27 @@ import {
 
 const COLORS = ["#2563eb", "#16a34a", "#dc2626", "#f59e0b", "#7c3aed", "#0891b2"];
 
+const MARKET_PRESETS = {
+  us: {
+    label: "US Market",
+    tickers: "AAPL, MSFT, GOOGL, AMZN",
+    benchmark: "SPY",
+    riskFreeRate: 0.04,
+    initialValue: 100000,
+    currency: "USD"
+  },
+  india: {
+    label: "Indian Market",
+    tickers: "RELIANCE, TCS, INFY, HDFCBANK",
+    benchmark: "^NSEI",
+    riskFreeRate: 0.065,
+    initialValue: 1000000,
+    currency: "INR"
+  }
+};
+
 const initialForm = {
+  market: "us",
   tickers: "AAPL, MSFT, GOOGL, AMZN",
   start: "2023-01-01",
   end: "2026-01-01",
@@ -64,13 +85,18 @@ function formatPercent(value, digits = 2) {
   return `${(value * 100).toFixed(digits)}%`;
 }
 
-function formatCurrency(value) {
+function formatCurrency(value, currency = "USD") {
   if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     maximumFractionDigits: 0
   }).format(value);
+}
+
+function formatCompactCurrency(value, currency = "USD") {
+  const symbol = currency === "INR" ? "₹" : "$";
+  return `${symbol}${Math.round(value / 1000)}k`;
 }
 
 function toAllocationData(weights = {}) {
@@ -131,6 +157,18 @@ export function App() {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
+  function selectMarket(market) {
+    const preset = MARKET_PRESETS[market];
+    setForm((current) => ({
+      ...current,
+      market,
+      tickers: preset.tickers,
+      benchmark: preset.benchmark,
+      riskFreeRate: preset.riskFreeRate,
+      initialValue: preset.initialValue
+    }));
+  }
+
   async function runAnalysis() {
     const tickers = parseTickers(form.tickers);
     if (tickers.length < 2) {
@@ -147,6 +185,7 @@ export function App() {
 
     try {
       const marketBase = {
+        market: form.market,
         tickers,
         start: form.start,
         end: form.end || null
@@ -222,6 +261,22 @@ export function App() {
             <span>Backend {status.backend}</span>
             <span className={status.quantEngine === "ok" ? "dot ok" : "dot bad"} />
             <span>Engine {status.quantEngine}</span>
+          </div>
+
+          <div className="market-tabs" role="tablist" aria-label="Market selection">
+            {Object.entries(MARKET_PRESETS).map(([market, preset]) => (
+              <button
+                key={market}
+                className={form.market === market ? "market-tab active" : "market-tab"}
+                type="button"
+                role="tab"
+                aria-selected={form.market === market}
+                onClick={() => selectMarket(market)}
+              >
+                <Globe2 size={16} />
+                <span>{preset.label}</span>
+              </button>
+            ))}
           </div>
 
           <label className="field">
@@ -339,7 +394,7 @@ export function App() {
               <h2>Portfolio Analysis</h2>
               <p>
                 {optimization
-                  ? `${optimization.price_rows} price rows, ${optimization.start} to ${optimization.end}`
+                  ? `${MARKET_PRESETS[form.market].label}: ${optimization.price_rows} price rows, ${optimization.start} to ${optimization.end}`
                   : "Waiting for optimization run"}
               </p>
             </div>
@@ -436,8 +491,11 @@ export function App() {
                   <AreaChart data={simulationData} margin={{ top: 16, right: 20, bottom: 12, left: 18 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="day" tick={{ fontSize: 12 }} />
-                    <YAxis tickFormatter={(value) => `$${Math.round(value / 1000)}k`} tick={{ fontSize: 12 }} />
-                    <Tooltip formatter={(value) => formatCurrency(value)} />
+                    <YAxis
+                      tickFormatter={(value) => formatCompactCurrency(value, MARKET_PRESETS[form.market].currency)}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <Tooltip formatter={(value) => formatCurrency(value, MARKET_PRESETS[form.market].currency)} />
                     <Area type="monotone" dataKey="p90" stroke="#16a34a" fill="#bbf7d0" fillOpacity={0.28} />
                     <Area type="monotone" dataKey="p75" stroke="#0891b2" fill="#bae6fd" fillOpacity={0.3} />
                     <Area type="monotone" dataKey="p50" stroke="#2563eb" fill="none" strokeWidth={3} />
@@ -497,4 +555,3 @@ function EmptyState() {
     </div>
   );
 }
-

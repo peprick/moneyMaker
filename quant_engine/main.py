@@ -23,6 +23,7 @@ class MarketDataRequest(BaseModel):
     tickers: list[str] = Field(min_length=1)
     start: str
     end: str | None = None
+    market: Literal["us", "india"] = "us"
 
 
 class OptimizeRequest(MarketDataRequest):
@@ -70,6 +71,7 @@ def optimize(request: OptimizeRequest) -> dict:
             tickers=request.tickers,
             start=request.start,
             end=request.end,
+            market=request.market,
         )
         result = optimize_portfolio(
             prices=prices,
@@ -99,6 +101,7 @@ def risk(request: RiskRequest) -> dict:
             tickers=request.tickers,
             start=request.start,
             end=request.end,
+            market=request.market,
         )
         benchmark_prices = None
         if request.benchmark:
@@ -106,6 +109,7 @@ def risk(request: RiskRequest) -> dict:
                 tickers=[request.benchmark],
                 start=request.start,
                 end=request.end,
+                market=request.market,
             )
         return asdict(
             analyze_risk(
@@ -126,6 +130,7 @@ def frontier(request: FrontierRequest) -> dict:
             tickers=request.tickers,
             start=request.start,
             end=request.end,
+            market=request.market,
         )
         points = efficient_frontier_points(
             prices=prices,
@@ -147,6 +152,7 @@ def monte_carlo(request: MonteCarloRequest) -> dict:
             tickers=request.tickers,
             start=request.start,
             end=request.end,
+            market=request.market,
         )
         return asdict(
             run_monte_carlo(
@@ -160,4 +166,3 @@ def monte_carlo(request: MonteCarloRequest) -> dict:
         )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-

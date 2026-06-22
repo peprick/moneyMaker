@@ -5,6 +5,7 @@ A local, no-Docker full-stack quantitative portfolio optimizer. The application 
 ## What It Does
 
 - Downloads historical adjusted-close market data from Yahoo Finance.
+- Supports US and Indian market presets from the UI.
 - Computes daily returns, annualized expected returns, and covariance.
 - Optimizes long-only portfolio weights using a swappable optimizer interface.
 - Reports expected return, volatility, Sharpe ratio, VaR, drawdown, and beta.
@@ -51,7 +52,7 @@ Important Python modules:
 
 ```text
 quant_engine/main.py          FastAPI routes
-quant_engine/market_data.py   Yahoo Finance adjusted-close loading
+quant_engine/market_data.py   Yahoo Finance adjusted-close loading and market symbol normalization
 quant_engine/optimizer.py     optimizer facade and current random-search strategy
 quant_engine/risk.py          VaR, drawdown, volatility, beta
 quant_engine/frontier.py      efficient-frontier-like points
@@ -146,7 +147,7 @@ mvn spring-boot:run
 If Maven is not installed globally:
 
 ```powershell
-C:\Users\Sagarnil\Documents\Codex\2026-06-21\files-mentioned-by-the-user-quant\work\tools\apache-maven-3.9.16\bin\mvn.cmd spring-boot:run
+& "C:\Users\Sagarnil\Documents\Codex\2026-06-21\files-mentioned-by-the-user-quant\work\tools\apache-maven-3.9.16\bin\mvn.cmd" --% -Dmaven.repo.local=C:\Users\Sagarnil\Documents\Codex\2026-06-21\files-mentioned-by-the-user-quant\work\m2 spring-boot:run
 ```
 
 Terminal 3, React frontend:
@@ -192,14 +193,49 @@ POST /api/montecarlo
 
 The frontend calls the Spring Boot `/api/*` routes. Vite proxies those calls to `http://127.0.0.1:8081`.
 
+## Market Support
+
+The UI has two market tabs:
+
+```text
+US Market      AAPL, MSFT, GOOGL, AMZN with SPY benchmark
+Indian Market  RELIANCE, TCS, INFY, HDFCBANK with ^NSEI benchmark
+```
+
+The selected market is sent as `market` on every analysis request. For Indian equities, the Python engine normalizes plain NSE symbols into Yahoo Finance symbols automatically:
+
+```text
+RELIANCE -> RELIANCE.NS
+TCS      -> TCS.NS
+INFY     -> INFY.NS
+```
+
+Indexes such as `^NSEI` are passed through unchanged.
+
 ## Example Optimize Request
 
 ```json
 {
+  "market": "us",
   "tickers": ["AAPL", "MSFT", "GOOGL", "AMZN"],
   "start": "2023-01-01",
   "end": "2026-01-01",
   "riskFreeRate": 0.04,
+  "maxWeight": 0.6,
+  "trials": 12000,
+  "seed": 42
+}
+```
+
+Indian market example:
+
+```json
+{
+  "market": "india",
+  "tickers": ["RELIANCE", "TCS", "INFY", "HDFCBANK"],
+  "start": "2023-01-01",
+  "end": "2026-01-01",
+  "riskFreeRate": 0.065,
   "maxWeight": 0.6,
   "trials": 12000,
   "seed": 42
@@ -248,6 +284,7 @@ sentiment_adjusted
 - This is not investment advice.
 - The optimizer uses historical returns and covariance, which are estimates, not guarantees.
 - yfinance is convenient for local development but is not an institutional-grade data source.
+- Indian equities use Yahoo Finance NSE suffixes under the hood, for example `.NS`.
 - The current optimizer is educational and swappable; a deterministic SciPy or PyPortfolioOpt optimizer should be added later.
 - No Docker is required.
 - No database is required yet; all analysis is request-driven.
@@ -263,6 +300,7 @@ React production build: passed
 Frontend proxy to Java: passed
 Java to Python optimize/risk/frontier/montecarlo: passed
 Java DTO validation: passed
+US/Indian market request field propagation: passed
 ```
 
 ## Next Steps
@@ -274,4 +312,3 @@ Good next improvements:
 - Add frontend tests for form validation and loading/error states.
 - Add persistence with PostgreSQL once the workflow stabilizes.
 - Add AI sentiment and allocation explanation as a separate optional layer.
-
