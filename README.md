@@ -8,6 +8,7 @@ A local, no-Docker full-stack quantitative portfolio optimizer. The application 
 - Supports US and Indian market presets from the UI.
 - Computes daily returns, annualized expected returns, and covariance.
 - Optimizes long-only portfolio weights using a swappable optimizer interface.
+- Uses SciPy SLSQP max-Sharpe optimization by default, with Random Search still available for comparison.
 - Reports expected return, volatility, Sharpe ratio, VaR, drawdown, and beta.
 - Generates efficient-frontier-style points for risk/return visualization.
 - Runs Monte Carlo simulations for future portfolio value bands.
@@ -53,7 +54,7 @@ Important Python modules:
 ```text
 quant_engine/main.py          FastAPI routes
 quant_engine/market_data.py   Yahoo Finance adjusted-close loading and market symbol normalization
-quant_engine/optimizer.py     optimizer facade and current random-search strategy
+quant_engine/optimizer.py     optimizer facade, SciPy max-Sharpe, and random-search strategy
 quant_engine/risk.py          VaR, drawdown, volatility, beta
 quant_engine/frontier.py      efficient-frontier-like points
 quant_engine/monte_carlo.py   simulation percentile bands
@@ -220,6 +221,7 @@ Indexes such as `^NSEI` are passed through unchanged.
   "tickers": ["AAPL", "MSFT", "GOOGL", "AMZN"],
   "start": "2023-01-01",
   "end": "2026-01-01",
+  "optimizer": "scipy_max_sharpe",
   "riskFreeRate": 0.04,
   "maxWeight": 0.6,
   "trials": 12000,
@@ -235,6 +237,7 @@ Indian market example:
   "tickers": ["RELIANCE", "TCS", "INFY", "HDFCBANK"],
   "start": "2023-01-01",
   "end": "2026-01-01",
+  "optimizer": "scipy_max_sharpe",
   "riskFreeRate": 0.065,
   "maxWeight": 0.6,
   "trials": 12000,
@@ -269,11 +272,11 @@ The Python optimizer is intentionally behind a stable facade:
 optimize_portfolio(prices, config=OptimizationConfig(...))
 ```
 
-The current strategy is `random_search`, which is simple and transparent. Later strategies can be added without changing the Java or React contracts:
+The current default strategy is `scipy_max_sharpe`, which uses SciPy's SLSQP optimizer to maximize the Sharpe ratio under long-only and max-weight constraints. `random_search` remains available as a transparent educational baseline from the UI and API.
 
 ```text
+scipy_max_sharpe
 random_search
-scipy
 pypfopt
 black_litterman
 sentiment_adjusted
@@ -285,7 +288,8 @@ sentiment_adjusted
 - The optimizer uses historical returns and covariance, which are estimates, not guarantees.
 - yfinance is convenient for local development but is not an institutional-grade data source.
 - Indian equities use Yahoo Finance NSE suffixes under the hood, for example `.NS`.
-- The current optimizer is educational and swappable; a deterministic SciPy or PyPortfolioOpt optimizer should be added later.
+- SciPy max-Sharpe is deterministic for the same input data and constraints; Random Search can vary with seed and trial count.
+- Optimizer outputs depend heavily on historical return and covariance estimates.
 - No Docker is required.
 - No database is required yet; all analysis is request-driven.
 
@@ -301,13 +305,14 @@ Frontend proxy to Java: passed
 Java to Python optimize/risk/frontier/montecarlo: passed
 Java DTO validation: passed
 US/Indian market request field propagation: passed
+SciPy max-Sharpe optimizer: passed
 ```
 
 ## Next Steps
 
 Good next improvements:
 
-- Add a deterministic SciPy optimizer strategy.
+- Add minimum-volatility and risk-parity optimizer strategies.
 - Add request/response tests for Java controller and client behavior.
 - Add frontend tests for form validation and loading/error states.
 - Add persistence with PostgreSQL once the workflow stabilizes.

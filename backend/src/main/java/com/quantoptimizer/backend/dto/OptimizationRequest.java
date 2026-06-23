@@ -4,13 +4,15 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 
 public class OptimizationRequest extends MarketDataRequest {
 
     private String objective = "max_sharpe";
 
-    private String optimizer = "random_search";
+    @Pattern(regexp = "random_search|scipy_max_sharpe", message = "optimizer must be random_search or scipy_max_sharpe")
+    private String optimizer = "scipy_max_sharpe";
 
     @JsonAlias("riskFreeRate")
     @JsonProperty("risk_free_rate")
@@ -75,4 +77,3 @@ public class OptimizationRequest extends MarketDataRequest {
         this.seed = seed;
     }
 }
-

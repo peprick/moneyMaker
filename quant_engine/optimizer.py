@@ -5,9 +5,11 @@ from dataclasses import replace
 
 import numpy as np
 import pandas as pd
+from scipy.optimize import minimize
 
 
 TRADING_DAYS_PER_YEAR = 252
+SUPPORTED_OPTIMIZERS = {"random_search", "scipy_max_sharpe"}
 
 
 @dataclass(frozen=True)
@@ -21,7 +23,7 @@ class PortfolioResult:
 @dataclass(frozen=True)
 class OptimizationConfig:
     objective: str = "max_sharpe"
-    optimizer: str = "random_search"
+    optimizer: str = "scipy_max_sharpe"
     risk_free_rate: float = 0.04
     max_weight: float = 0.60
     trials: int = 20_000
@@ -114,10 +116,17 @@ def optimize_portfolio(
 
     if config.objective != "max_sharpe":
         raise NotImplementedError(f"unsupported objective: {config.objective}")
-    if config.optimizer != "random_search":
+    if config.optimizer not in SUPPORTED_OPTIMIZERS:
         raise NotImplementedError(f"unsupported optimizer: {config.optimizer}")
 
-    return _random_search_max_sharpe(
+    if config.optimizer == "random_search":
+        return _random_search_max_sharpe(
+            expected_returns=expected_returns,
+            covariance=covariance,
+            config=config,
+        )
+
+    return _scipy_max_sharpe(
         expected_returns=expected_returns,
         covariance=covariance,
         config=config,
@@ -133,11 +142,18 @@ def _validate_config(config: OptimizationConfig) -> None:
         raise ValueError("risk_free_rate must be finite")
 
 
+def _validate_feasible_weights(asset_count: int, max_weight: float) -> None:
+    if asset_count * max_weight < 1:
+        raise ValueError("max_weight is too low to allocate 100% across the selected tickers")
+
+
 def _random_search_max_sharpe(
     expected_returns: pd.Series,
     covariance: pd.DataFrame,
     config: OptimizationConfig,
 ) -> PortfolioResult:
+    _validate_feasible_weights(len(expected_returns), config.max_weight)
+
     rng = np.random.default_rng(config.seed)
     best: PortfolioResult | None = None
 
@@ -163,3 +179,46 @@ def _random_search_max_sharpe(
 
     return best
 
+
+def _scipy_max_sharpe(
+    expected_returns: pd.Series,
+    covariance: pd.DataFrame,
+    config: OptimizationConfig,
+) -> PortfolioResult:
+    asset_count = len(expected_returns)
+    _validate_feasible_weights(asset_count, config.max_weight)
+
+    bounds = [(0.0, config.max_weight) for _ in range(asset_count)]
+    constraints = ({"type": "eq", "fun": lambda weights: np.sum(weights) - 1.0},)
+    initial_weights = np.full(asset_count, 1.0 / asset_count)
+
+    def negative_sharpe(weights: np.ndarray) -> float:
+        expected_return = float(np.dot(weights, expected_returns.values))
+        variance = float(weights.T @ covariance.values @ weights)
+        volatility = float(np.sqrt(max(variance, 0.0)))
+        if volatility <= 0:
+            return 1e9
+        return -((expected_return - config.risk_free_rate) / volatility)
+
+    result = minimize(
+        negative_sharpe,
+        initial_weights,
+        method="SLSQP",
+        bounds=bounds,
+        constraints=constraints,
+        options={"maxiter": 1_000, "ftol": 1e-9},
+    )
+
+    if not result.success:
+        raise ValueError(f"SciPy optimizer failed: {result.message}")
+
+    weights = np.asarray(result.x, dtype=float)
+    weights[np.isclose(weights, 0.0, atol=1e-10)] = 0.0
+    weights = weights / weights.sum()
+
+    return portfolio_metrics(
+        expected_returns=expected_returns,
+        covariance=covariance,
+        weights=weights,
+        risk_free_rate=config.risk_free_rate,
+    )
