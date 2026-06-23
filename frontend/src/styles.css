@@ -18,7 +18,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -164,7 +165,8 @@ p,
   text-transform: uppercase;
 }
 
-.field input {
+.field input,
+.field select {
   width: 100%;
   min-height: 42px;
   border: 1px solid #cdd6e2;
@@ -175,7 +177,8 @@ p,
   outline: none;
 }
 
-.field input:focus {
+.field input:focus,
+.field select:focus {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }

@@ -39,6 +39,11 @@ import {
 
 const COLORS = ["#2563eb", "#16a34a", "#dc2626", "#f59e0b", "#7c3aed", "#0891b2"];
 
+const OPTIMIZER_OPTIONS = [
+  { value: "scipy_max_sharpe", label: "SciPy Max Sharpe" },
+  { value: "random_search", label: "Random Search" }
+];
+
 const MARKET_PRESETS = {
   us: {
     label: "US Market",
@@ -60,6 +65,7 @@ const MARKET_PRESETS = {
 
 const initialForm = {
   market: "us",
+  optimizer: "scipy_max_sharpe",
   tickers: "AAPL, MSFT, GOOGL, AMZN",
   start: "2023-01-01",
   end: "2026-01-01",
@@ -193,6 +199,7 @@ export function App() {
 
       const optimized = await optimizePortfolio({
         ...marketBase,
+        optimizer: form.optimizer,
         riskFreeRate: Number(form.riskFreeRate),
         maxWeight: Number(form.maxWeight),
         trials: Number(form.trials),
@@ -286,6 +293,20 @@ export function App() {
               onChange={(event) => updateField("tickers", event.target.value)}
               spellCheck="false"
             />
+          </label>
+
+          <label className="field">
+            <span>Optimizer</span>
+            <select
+              value={form.optimizer}
+              onChange={(event) => updateField("optimizer", event.target.value)}
+            >
+              {OPTIMIZER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
 
           <div className="field-grid">
