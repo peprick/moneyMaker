@@ -28,7 +28,7 @@ class MarketDataRequest(BaseModel):
 
 class OptimizeRequest(MarketDataRequest):
     objective: Literal["max_sharpe"] = "max_sharpe"
-    optimizer: Literal["random_search", "scipy_max_sharpe"] = "scipy_max_sharpe"
+    optimizer: Literal["random_search", "scipy_max_sharpe", "black_litterman"] = "scipy_max_sharpe"
     risk_free_rate: float = 0.04
     max_weight: float = Field(default=0.60, gt=0, le=1)
     trials: int = Field(default=50_000, gt=0)

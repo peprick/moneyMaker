@@ -11,7 +11,10 @@ public class OptimizationRequest extends MarketDataRequest {
 
     private String objective = "max_sharpe";
 
-    @Pattern(regexp = "random_search|scipy_max_sharpe", message = "optimizer must be random_search or scipy_max_sharpe")
+    @Pattern(
+            regexp = "random_search|scipy_max_sharpe|black_litterman",
+            message = "optimizer must be random_search, scipy_max_sharpe, or black_litterman"
+    )
     private String optimizer = "scipy_max_sharpe";
 
     @JsonAlias("riskFreeRate")

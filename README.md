@@ -272,15 +272,17 @@ The Python optimizer is intentionally behind a stable facade:
 optimize_portfolio(prices, config=OptimizationConfig(...))
 ```
 
-The current default strategy is `scipy_max_sharpe`, which uses SciPy's SLSQP optimizer to maximize the Sharpe ratio under long-only and max-weight constraints. `random_search` remains available as a transparent educational baseline from the UI and API.
+The current default strategy is `scipy_max_sharpe`, which uses SciPy's SLSQP optimizer to maximize the Sharpe ratio under long-only and max-weight constraints. `black_litterman` and `random_search` are also available from the UI and API.
 
 ```text
 scipy_max_sharpe
+black_litterman
 random_search
 pypfopt
-black_litterman
 sentiment_adjusted
 ```
+
+The current Black-Litterman implementation uses an equal-weight market proxy to infer equilibrium returns, then blends those equilibrium returns with historical expected returns as low-confidence absolute views. It then sends the blended return estimate through the same constrained SciPy max-Sharpe allocation step. Future versions can replace the historical-return views with explicit user, analyst, sentiment, or AI views.
 
 ## Notes And Limitations
 
@@ -289,6 +291,7 @@ sentiment_adjusted
 - yfinance is convenient for local development but is not an institutional-grade data source.
 - Indian equities use Yahoo Finance NSE suffixes under the hood, for example `.NS`.
 - SciPy max-Sharpe is deterministic for the same input data and constraints; Random Search can vary with seed and trial count.
+- Black-Litterman currently uses proxy market weights because live market-cap data is not yet part of the project.
 - Optimizer outputs depend heavily on historical return and covariance estimates.
 - No Docker is required.
 - No database is required yet; all analysis is request-driven.
@@ -306,12 +309,14 @@ Java to Python optimize/risk/frontier/montecarlo: passed
 Java DTO validation: passed
 US/Indian market request field propagation: passed
 SciPy max-Sharpe optimizer: passed
+Black-Litterman optimizer: passed
 ```
 
 ## Next Steps
 
 Good next improvements:
 
+- Add explicit Black-Litterman views from the UI.
 - Add minimum-volatility and risk-parity optimizer strategies.
 - Add request/response tests for Java controller and client behavior.
 - Add frontend tests for form validation and loading/error states.

@@ -41,6 +41,7 @@ const COLORS = ["#2563eb", "#16a34a", "#dc2626", "#f59e0b", "#7c3aed", "#0891b2"
 
 const OPTIMIZER_OPTIONS = [
   { value: "scipy_max_sharpe", label: "SciPy Max Sharpe" },
+  { value: "black_litterman", label: "Black-Litterman" },
   { value: "random_search", label: "Random Search" }
 ];
 

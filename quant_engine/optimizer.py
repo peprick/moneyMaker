@@ -9,7 +9,9 @@ from scipy.optimize import minimize
 
 
 TRADING_DAYS_PER_YEAR = 252
-SUPPORTED_OPTIMIZERS = {"random_search", "scipy_max_sharpe"}
+SUPPORTED_OPTIMIZERS = {"random_search", "scipy_max_sharpe", "black_litterman"}
+BLACK_LITTERMAN_TAU = 0.05
+BLACK_LITTERMAN_VIEW_UNCERTAINTY = 4.0
 
 
 @dataclass(frozen=True)
@@ -126,6 +128,13 @@ def optimize_portfolio(
             config=config,
         )
 
+    if config.optimizer == "black_litterman":
+        expected_returns = _black_litterman_expected_returns(
+            historical_expected_returns=expected_returns,
+            covariance=covariance,
+            risk_free_rate=config.risk_free_rate,
+        )
+
     return _scipy_max_sharpe(
         expected_returns=expected_returns,
         covariance=covariance,
@@ -178,6 +187,45 @@ def _random_search_max_sharpe(
         raise ValueError("no valid portfolio found; relax constraints or increase trials")
 
     return best
+
+
+def _black_litterman_expected_returns(
+    historical_expected_returns: pd.Series,
+    covariance: pd.DataFrame,
+    risk_free_rate: float,
+) -> pd.Series:
+    asset_count = len(historical_expected_returns)
+    market_weights = np.full(asset_count, 1.0 / asset_count)
+    covariance_values = covariance.values
+
+    market_return = float(np.dot(market_weights, historical_expected_returns.values))
+    market_variance = float(market_weights.T @ covariance_values @ market_weights)
+    if market_variance <= 0:
+        raise ValueError("market proxy variance is zero; Black-Litterman is undefined")
+
+    risk_aversion = max((market_return - risk_free_rate) / market_variance, 1e-6)
+    equilibrium_returns = risk_aversion * covariance_values @ market_weights
+
+    tau_covariance = BLACK_LITTERMAN_TAU * covariance_values
+    view_pick_matrix = np.eye(asset_count)
+    view_returns = historical_expected_returns.values
+    view_uncertainty = np.diag(np.diag(tau_covariance)) * BLACK_LITTERMAN_VIEW_UNCERTAINTY
+
+    prior_precision = np.linalg.pinv(tau_covariance)
+    view_precision = np.linalg.pinv(view_uncertainty)
+    posterior_covariance = np.linalg.pinv(
+        prior_precision + view_pick_matrix.T @ view_precision @ view_pick_matrix
+    )
+    posterior_returns = posterior_covariance @ (
+        prior_precision @ equilibrium_returns
+        + view_pick_matrix.T @ view_precision @ view_returns
+    )
+
+    return pd.Series(
+        posterior_returns,
+        index=historical_expected_returns.index,
+        name="black_litterman_expected_return",
+    )
 
 
 def _scipy_max_sharpe(
