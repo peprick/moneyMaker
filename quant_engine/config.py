@@ -1,0 +1,27 @@
+from __future__ import annotations
+
+from enum import StrEnum
+
+
+class OptimizerName(StrEnum):
+    HIERARCHICAL_RISK_PARITY = "hierarchical_risk_parity"
+    SCIPY_MAX_SHARPE = "scipy_max_sharpe"
+    BLACK_LITTERMAN = "black_litterman"
+    RANDOM_SEARCH = "random_search"
+
+
+DEFAULT_OPTIMIZER = OptimizerName.HIERARCHICAL_RISK_PARITY.value
+SUPPORTED_OPTIMIZERS = {optimizer.value for optimizer in OptimizerName}
+
+DEFAULT_RISK_FREE_RATE = 0.04
+DEFAULT_MAX_WEIGHT = 0.60
+DEFAULT_OPTIMIZER_TRIALS = 50_000
+DEFAULT_RANDOM_SEARCH_TRIALS = 20_000
+DEFAULT_FRONTIER_TRIALS = 60_000
+DEFAULT_SEED = 42
+DEFAULT_FRONTIER_POINTS = 12
+DEFAULT_MONTE_CARLO_DAYS = 252
+DEFAULT_MONTE_CARLO_SIMULATIONS = 1_000
+DEFAULT_INITIAL_VALUE = 100_000.0
+
+TRADING_DAYS_PER_YEAR = 252

@@ -7,17 +7,17 @@ import jakarta.validation.constraints.Positive;
 public class MonteCarloRequest extends WeightedMarketDataRequest {
 
     @Positive
-    private int days = 252;
+    private int days = RequestDefaults.DEFAULT_MONTE_CARLO_DAYS;
 
     @Positive
-    private int simulations = 1_000;
+    private int simulations = RequestDefaults.DEFAULT_MONTE_CARLO_SIMULATIONS;
 
     @Positive
     @JsonAlias("initialValue")
     @JsonProperty("initial_value")
-    private double initialValue = 100_000.0;
+    private double initialValue = RequestDefaults.DEFAULT_INITIAL_VALUE;
 
-    private int seed = 42;
+    private int seed = RequestDefaults.DEFAULT_SEED;
 
     public int getDays() {
         return days;
@@ -51,4 +51,3 @@ public class MonteCarloRequest extends WeightedMarketDataRequest {
         this.seed = seed;
     }
 }
-

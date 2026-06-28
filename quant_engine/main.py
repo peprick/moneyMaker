@@ -8,6 +8,16 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 from pydantic import Field
 
+from .config import DEFAULT_FRONTIER_POINTS
+from .config import DEFAULT_FRONTIER_TRIALS
+from .config import DEFAULT_INITIAL_VALUE
+from .config import DEFAULT_MAX_WEIGHT
+from .config import DEFAULT_MONTE_CARLO_DAYS
+from .config import DEFAULT_MONTE_CARLO_SIMULATIONS
+from .config import DEFAULT_OPTIMIZER_TRIALS
+from .config import DEFAULT_RISK_FREE_RATE
+from .config import DEFAULT_SEED
+from .config import OptimizerName
 from .frontier import efficient_frontier_points
 from .market_data import fetch_adjusted_close_prices
 from .monte_carlo import run_monte_carlo
@@ -28,11 +38,11 @@ class MarketDataRequest(BaseModel):
 
 class OptimizeRequest(MarketDataRequest):
     objective: Literal["max_sharpe"] = "max_sharpe"
-    optimizer: Literal["random_search", "scipy_max_sharpe", "black_litterman"] = "scipy_max_sharpe"
-    risk_free_rate: float = 0.04
-    max_weight: float = Field(default=0.60, gt=0, le=1)
-    trials: int = Field(default=50_000, gt=0)
-    seed: int = 42
+    optimizer: OptimizerName = OptimizerName.HIERARCHICAL_RISK_PARITY
+    risk_free_rate: float = DEFAULT_RISK_FREE_RATE
+    max_weight: float = Field(default=DEFAULT_MAX_WEIGHT, gt=0, le=1)
+    trials: int = Field(default=DEFAULT_OPTIMIZER_TRIALS, gt=0)
+    seed: int = DEFAULT_SEED
 
 
 class WeightedMarketDataRequest(MarketDataRequest):
@@ -45,18 +55,18 @@ class RiskRequest(WeightedMarketDataRequest):
 
 
 class FrontierRequest(MarketDataRequest):
-    risk_free_rate: float = 0.04
-    max_weight: float = Field(default=0.60, gt=0, le=1)
-    points: int = Field(default=12, gt=1)
-    trials: int = Field(default=60_000, gt=0)
-    seed: int = 42
+    risk_free_rate: float = DEFAULT_RISK_FREE_RATE
+    max_weight: float = Field(default=DEFAULT_MAX_WEIGHT, gt=0, le=1)
+    points: int = Field(default=DEFAULT_FRONTIER_POINTS, gt=1)
+    trials: int = Field(default=DEFAULT_FRONTIER_TRIALS, gt=0)
+    seed: int = DEFAULT_SEED
 
 
 class MonteCarloRequest(WeightedMarketDataRequest):
-    days: int = Field(default=252, gt=0)
-    simulations: int = Field(default=1_000, gt=0)
-    initial_value: float = Field(default=100_000.0, gt=0)
-    seed: int = 42
+    days: int = Field(default=DEFAULT_MONTE_CARLO_DAYS, gt=0)
+    simulations: int = Field(default=DEFAULT_MONTE_CARLO_SIMULATIONS, gt=0)
+    initial_value: float = Field(default=DEFAULT_INITIAL_VALUE, gt=0)
+    seed: int = DEFAULT_SEED
 
 
 @app.get("/health")

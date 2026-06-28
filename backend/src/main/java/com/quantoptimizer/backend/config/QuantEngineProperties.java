@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "quant-engine")
 public class QuantEngineProperties {
 
-    private String baseUrl = "http://localhost:8001";
+    private String baseUrl;
 
     public String getBaseUrl() {
         return baseUrl;
@@ -15,4 +15,3 @@ public class QuantEngineProperties {
         this.baseUrl = baseUrl;
     }
 }
-
