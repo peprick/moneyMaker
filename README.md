@@ -8,7 +8,7 @@ A local, no-Docker full-stack quantitative portfolio optimizer. The application 
 - Supports US and Indian market presets from the UI.
 - Computes daily returns, annualized expected returns, and covariance.
 - Optimizes long-only portfolio weights using a swappable optimizer interface.
-- Uses SciPy SLSQP max-Sharpe optimization by default, with Random Search still available for comparison.
+- Uses Hierarchical Risk Parity by default, with SciPy Max Sharpe, Black-Litterman, and Random Search available for comparison.
 - Reports expected return, volatility, Sharpe ratio, VaR, drawdown, and beta.
 - Generates efficient-frontier-style points for risk/return visualization.
 - Runs Monte Carlo simulations for future portfolio value bands.
@@ -53,8 +53,9 @@ Important Python modules:
 
 ```text
 quant_engine/main.py          FastAPI routes
+quant_engine/config.py        shared optimizer and simulation defaults
 quant_engine/market_data.py   Yahoo Finance adjusted-close loading and market symbol normalization
-quant_engine/optimizer.py     optimizer facade, SciPy max-Sharpe, and random-search strategy
+quant_engine/optimizer.py     optimizer facade, HRP, Black-Litterman, SciPy, and random search
 quant_engine/risk.py          VaR, drawdown, volatility, beta
 quant_engine/frontier.py      efficient-frontier-like points
 quant_engine/monte_carlo.py   simulation percentile bands
@@ -73,6 +74,7 @@ Important frontend modules:
 ```text
 frontend/src/App.jsx
 frontend/src/api/quantApi.js
+frontend/src/config/appConfig.js
 frontend/src/styles.css
 ```
 
@@ -170,6 +172,16 @@ If that port is busy, Vite will print the next available port, such as:
 http://127.0.0.1:5174
 ```
 
+Optional local overrides:
+
+```powershell
+$env:SERVER_PORT=8081
+$env:QUANT_ENGINE_BASE_URL="http://localhost:8001"
+$env:VITE_DEV_HOST="127.0.0.1"
+$env:VITE_DEV_PORT=5173
+$env:VITE_API_PROXY_TARGET="http://127.0.0.1:8081"
+```
+
 ## API Surface
 
 Python quant engine:
@@ -221,7 +233,7 @@ Indexes such as `^NSEI` are passed through unchanged.
   "tickers": ["AAPL", "MSFT", "GOOGL", "AMZN"],
   "start": "2023-01-01",
   "end": "2026-01-01",
-  "optimizer": "scipy_max_sharpe",
+  "optimizer": "hierarchical_risk_parity",
   "riskFreeRate": 0.04,
   "maxWeight": 0.6,
   "trials": 12000,
@@ -237,7 +249,7 @@ Indian market example:
   "tickers": ["RELIANCE", "TCS", "INFY", "HDFCBANK"],
   "start": "2023-01-01",
   "end": "2026-01-01",
-  "optimizer": "scipy_max_sharpe",
+  "optimizer": "hierarchical_risk_parity",
   "riskFreeRate": 0.065,
   "maxWeight": 0.6,
   "trials": 12000,
@@ -272,13 +284,13 @@ The Python optimizer is intentionally behind a stable facade:
 optimize_portfolio(prices, config=OptimizationConfig(...))
 ```
 
-The current default strategy is `scipy_max_sharpe`, which uses SciPy's SLSQP optimizer to maximize the Sharpe ratio under long-only and max-weight constraints. `black_litterman` and `random_search` are also available from the UI and API.
+The current default strategy is `hierarchical_risk_parity`, which clusters assets by correlation and recursively allocates capital by cluster risk. It is a robust default because it depends less on noisy expected-return estimates than max-Sharpe optimization. `scipy_max_sharpe`, `black_litterman`, and `random_search` are also available from the UI and API.
 
 ```text
+hierarchical_risk_parity
 scipy_max_sharpe
 black_litterman
 random_search
-pypfopt
 sentiment_adjusted
 ```
 
@@ -290,6 +302,7 @@ The current Black-Litterman implementation uses an equal-weight market proxy to 
 - The optimizer uses historical returns and covariance, which are estimates, not guarantees.
 - yfinance is convenient for local development but is not an institutional-grade data source.
 - Indian equities use Yahoo Finance NSE suffixes under the hood, for example `.NS`.
+- Hierarchical Risk Parity uses covariance/correlation structure and may produce lower-return but more diversified portfolios than max-Sharpe methods.
 - SciPy max-Sharpe is deterministic for the same input data and constraints; Random Search can vary with seed and trial count.
 - Black-Litterman currently uses proxy market weights because live market-cap data is not yet part of the project.
 - Optimizer outputs depend heavily on historical return and covariance estimates.
@@ -310,6 +323,7 @@ Java DTO validation: passed
 US/Indian market request field propagation: passed
 SciPy max-Sharpe optimizer: passed
 Black-Litterman optimizer: passed
+Hierarchical Risk Parity optimizer: passed
 ```
 
 ## Next Steps
@@ -317,7 +331,7 @@ Black-Litterman optimizer: passed
 Good next improvements:
 
 - Add explicit Black-Litterman views from the UI.
-- Add minimum-volatility and risk-parity optimizer strategies.
+- Add minimum-volatility and target-risk optimizer strategies.
 - Add request/response tests for Java controller and client behavior.
 - Add frontend tests for form validation and loading/error states.
 - Add persistence with PostgreSQL once the workflow stabilizes.

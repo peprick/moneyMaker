@@ -5,11 +5,20 @@ from dataclasses import replace
 
 import numpy as np
 import pandas as pd
+from scipy.cluster.hierarchy import leaves_list
+from scipy.cluster.hierarchy import linkage
 from scipy.optimize import minimize
+from scipy.spatial.distance import squareform
 
+from .config import DEFAULT_MAX_WEIGHT
+from .config import DEFAULT_RANDOM_SEARCH_TRIALS
+from .config import DEFAULT_RISK_FREE_RATE
+from .config import DEFAULT_SEED
+from .config import DEFAULT_OPTIMIZER
+from .config import OptimizerName
+from .config import SUPPORTED_OPTIMIZERS
+from .config import TRADING_DAYS_PER_YEAR
 
-TRADING_DAYS_PER_YEAR = 252
-SUPPORTED_OPTIMIZERS = {"random_search", "scipy_max_sharpe", "black_litterman"}
 BLACK_LITTERMAN_TAU = 0.05
 BLACK_LITTERMAN_VIEW_UNCERTAINTY = 4.0
 
@@ -25,11 +34,11 @@ class PortfolioResult:
 @dataclass(frozen=True)
 class OptimizationConfig:
     objective: str = "max_sharpe"
-    optimizer: str = "scipy_max_sharpe"
-    risk_free_rate: float = 0.04
-    max_weight: float = 0.60
-    trials: int = 20_000
-    seed: int = 42
+    optimizer: str = DEFAULT_OPTIMIZER
+    risk_free_rate: float = DEFAULT_RISK_FREE_RATE
+    max_weight: float = DEFAULT_MAX_WEIGHT
+    trials: int = DEFAULT_RANDOM_SEARCH_TRIALS
+    seed: int = DEFAULT_SEED
 
 
 def daily_returns(prices: pd.DataFrame) -> pd.DataFrame:
@@ -101,7 +110,7 @@ def optimize_portfolio(
     config = replace(
         config,
         objective=objective if objective is not None else config.objective,
-        optimizer=optimizer if optimizer is not None else config.optimizer,
+        optimizer=_normalize_optimizer(optimizer if optimizer is not None else config.optimizer),
         risk_free_rate=(
             risk_free_rate if risk_free_rate is not None else config.risk_free_rate
         ),
@@ -121,14 +130,21 @@ def optimize_portfolio(
     if config.optimizer not in SUPPORTED_OPTIMIZERS:
         raise NotImplementedError(f"unsupported optimizer: {config.optimizer}")
 
-    if config.optimizer == "random_search":
+    if config.optimizer == OptimizerName.RANDOM_SEARCH.value:
         return _random_search_max_sharpe(
             expected_returns=expected_returns,
             covariance=covariance,
             config=config,
         )
 
-    if config.optimizer == "black_litterman":
+    if config.optimizer == OptimizerName.HIERARCHICAL_RISK_PARITY.value:
+        return _hierarchical_risk_parity(
+            expected_returns=expected_returns,
+            covariance=covariance,
+            config=config,
+        )
+
+    if config.optimizer == OptimizerName.BLACK_LITTERMAN.value:
         expected_returns = _black_litterman_expected_returns(
             historical_expected_returns=expected_returns,
             covariance=covariance,
@@ -140,6 +156,12 @@ def optimize_portfolio(
         covariance=covariance,
         config=config,
     )
+
+
+def _normalize_optimizer(optimizer: str | OptimizerName) -> str:
+    if isinstance(optimizer, OptimizerName):
+        return optimizer.value
+    return optimizer
 
 
 def _validate_config(config: OptimizationConfig) -> None:
@@ -187,6 +209,79 @@ def _random_search_max_sharpe(
         raise ValueError("no valid portfolio found; relax constraints or increase trials")
 
     return best
+
+
+def _hierarchical_risk_parity(
+    expected_returns: pd.Series,
+    covariance: pd.DataFrame,
+    config: OptimizationConfig,
+) -> PortfolioResult:
+    asset_count = len(expected_returns)
+    if asset_count < 2:
+        raise ValueError("HRP requires at least two tickers")
+    _validate_feasible_weights(asset_count, config.max_weight)
+
+    covariance_values = covariance.values
+    volatility = np.sqrt(np.diag(covariance_values))
+    if np.any(volatility <= 0):
+        raise ValueError("asset volatility is zero; HRP is undefined")
+
+    correlation = covariance_values / np.outer(volatility, volatility)
+    correlation = np.nan_to_num(correlation, nan=0.0, posinf=0.0, neginf=0.0)
+    correlation = np.clip(correlation, -1.0, 1.0)
+    distance = np.sqrt((1.0 - correlation) / 2.0)
+    np.fill_diagonal(distance, 0.0)
+
+    ordered_indices = leaves_list(linkage(squareform(distance, checks=False), method="single")).tolist()
+    weights = pd.Series(1.0, index=ordered_indices)
+    clusters = [ordered_indices]
+
+    while clusters:
+        cluster = clusters.pop(0)
+        if len(cluster) <= 1:
+            continue
+
+        split = len(cluster) // 2
+        left_cluster = cluster[:split]
+        right_cluster = cluster[split:]
+        left_variance = _cluster_variance(covariance_values, left_cluster)
+        right_variance = _cluster_variance(covariance_values, right_cluster)
+        allocation = 1.0 - left_variance / (left_variance + right_variance)
+
+        weights[left_cluster] *= allocation
+        weights[right_cluster] *= 1.0 - allocation
+        clusters.extend([left_cluster, right_cluster])
+
+    ordered_weights = weights.sort_index().to_numpy(dtype=float)
+    ordered_weights = _apply_max_weight_cap(ordered_weights / ordered_weights.sum(), config.max_weight)
+
+    return portfolio_metrics(
+        expected_returns=expected_returns,
+        covariance=covariance,
+        weights=ordered_weights,
+        risk_free_rate=config.risk_free_rate,
+    )
+
+
+def _cluster_variance(covariance_values: np.ndarray, cluster: list[int]) -> float:
+    cluster_covariance = covariance_values[np.ix_(cluster, cluster)]
+    inverse_variance = 1.0 / np.diag(cluster_covariance)
+    inverse_variance_weights = inverse_variance / inverse_variance.sum()
+    return float(inverse_variance_weights.T @ cluster_covariance @ inverse_variance_weights)
+
+
+def _apply_max_weight_cap(weights: np.ndarray, max_weight: float) -> np.ndarray:
+    capped_weights = np.minimum(weights, max_weight)
+    remaining_weight = 1.0 - capped_weights.sum()
+    if remaining_weight <= 1e-12:
+        return capped_weights / capped_weights.sum()
+
+    available_room = max_weight - capped_weights
+    if available_room.sum() + 1e-12 < remaining_weight:
+        raise ValueError("max_weight is too low to allocate 100% across the selected tickers")
+
+    capped_weights += available_room / available_room.sum() * remaining_weight
+    return capped_weights / capped_weights.sum()
 
 
 def _black_litterman_expected_returns(
@@ -238,7 +333,6 @@ def _scipy_max_sharpe(
 
     bounds = [(0.0, config.max_weight) for _ in range(asset_count)]
     constraints = ({"type": "eq", "fun": lambda weights: np.sum(weights) - 1.0},)
-    initial_weights = np.full(asset_count, 1.0 / asset_count)
 
     def negative_sharpe(weights: np.ndarray) -> float:
         expected_return = float(np.dot(weights, expected_returns.values))
@@ -248,25 +342,63 @@ def _scipy_max_sharpe(
             return 1e9
         return -((expected_return - config.risk_free_rate) / volatility)
 
-    result = minimize(
-        negative_sharpe,
-        initial_weights,
-        method="SLSQP",
-        bounds=bounds,
-        constraints=constraints,
-        options={"maxiter": 1_000, "ftol": 1e-9},
-    )
+    best: PortfolioResult | None = None
+    failure_messages: list[str] = []
 
-    if not result.success:
-        raise ValueError(f"SciPy optimizer failed: {result.message}")
+    for initial_weights in _initial_weight_candidates(covariance, config):
+        result = minimize(
+            negative_sharpe,
+            initial_weights,
+            method="SLSQP",
+            bounds=bounds,
+            constraints=constraints,
+            options={"maxiter": 1_000, "ftol": 1e-9},
+        )
 
-    weights = np.asarray(result.x, dtype=float)
-    weights[np.isclose(weights, 0.0, atol=1e-10)] = 0.0
-    weights = weights / weights.sum()
+        if not result.success:
+            failure_messages.append(str(result.message))
+            continue
 
-    return portfolio_metrics(
-        expected_returns=expected_returns,
-        covariance=covariance,
-        weights=weights,
-        risk_free_rate=config.risk_free_rate,
-    )
+        weights = np.asarray(result.x, dtype=float)
+        weights[np.isclose(weights, 0.0, atol=1e-10)] = 0.0
+        weights = weights / weights.sum()
+        if weights.max() > config.max_weight + 1e-8:
+            continue
+
+        candidate = portfolio_metrics(
+            expected_returns=expected_returns,
+            covariance=covariance,
+            weights=weights,
+            risk_free_rate=config.risk_free_rate,
+        )
+        if best is None or candidate.sharpe_ratio > best.sharpe_ratio:
+            best = candidate
+
+    if best is None:
+        messages = "; ".join(sorted(set(failure_messages))) or "no feasible solution"
+        raise ValueError(f"SciPy optimizer failed: {messages}")
+
+    return best
+
+
+def _initial_weight_candidates(
+    covariance: pd.DataFrame,
+    config: OptimizationConfig,
+) -> list[np.ndarray]:
+    asset_count = len(covariance)
+    equal_weights = np.full(asset_count, 1.0 / asset_count)
+    inverse_variance = 1.0 / np.diag(covariance.values)
+    inverse_variance_weights = inverse_variance / inverse_variance.sum()
+
+    candidates = [
+        equal_weights,
+        _apply_max_weight_cap(inverse_variance_weights, config.max_weight),
+    ]
+
+    rng = np.random.default_rng(config.seed)
+    for _ in range(min(config.trials, 25)):
+        random_weights = rng.random(asset_count)
+        random_weights = random_weights / random_weights.sum()
+        candidates.append(_apply_max_weight_cap(random_weights, config.max_weight))
+
+    return candidates

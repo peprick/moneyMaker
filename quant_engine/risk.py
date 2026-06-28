@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from .optimizer import TRADING_DAYS_PER_YEAR
+from .config import TRADING_DAYS_PER_YEAR
 from .optimizer import daily_returns
 
 
@@ -95,4 +95,3 @@ def analyze_risk(
 def _validate_confidence(confidence: float) -> None:
     if not 0 < confidence < 1:
         raise ValueError("confidence must be between 0 and 1")
-

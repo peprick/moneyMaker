@@ -11,21 +11,21 @@ public class FrontierRequest extends MarketDataRequest {
 
     @JsonAlias("riskFreeRate")
     @JsonProperty("risk_free_rate")
-    private double riskFreeRate = 0.04;
+    private double riskFreeRate = RequestDefaults.DEFAULT_RISK_FREE_RATE;
 
     @DecimalMin(value = "0.0", inclusive = false)
     @DecimalMax("1.0")
     @JsonAlias("maxWeight")
     @JsonProperty("max_weight")
-    private double maxWeight = 0.60;
+    private double maxWeight = RequestDefaults.DEFAULT_MAX_WEIGHT;
 
     @Min(2)
-    private int points = 12;
+    private int points = RequestDefaults.DEFAULT_FRONTIER_POINTS;
 
     @Positive
-    private int trials = 60_000;
+    private int trials = RequestDefaults.DEFAULT_FRONTIER_TRIALS;
 
-    private int seed = 42;
+    private int seed = RequestDefaults.DEFAULT_SEED;
 
     public double getRiskFreeRate() {
         return riskFreeRate;
@@ -67,4 +67,3 @@ public class FrontierRequest extends MarketDataRequest {
         this.seed = seed;
     }
 }
-

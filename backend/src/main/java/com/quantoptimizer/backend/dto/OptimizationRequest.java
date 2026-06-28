@@ -9,28 +9,28 @@ import jakarta.validation.constraints.Positive;
 
 public class OptimizationRequest extends MarketDataRequest {
 
-    private String objective = "max_sharpe";
+    private String objective = RequestDefaults.DEFAULT_OBJECTIVE;
 
     @Pattern(
-            regexp = "random_search|scipy_max_sharpe|black_litterman",
-            message = "optimizer must be random_search, scipy_max_sharpe, or black_litterman"
+            regexp = RequestDefaults.OPTIMIZER_PATTERN,
+            message = RequestDefaults.OPTIMIZER_MESSAGE
     )
-    private String optimizer = "scipy_max_sharpe";
+    private String optimizer = RequestDefaults.DEFAULT_OPTIMIZER;
 
     @JsonAlias("riskFreeRate")
     @JsonProperty("risk_free_rate")
-    private double riskFreeRate = 0.04;
+    private double riskFreeRate = RequestDefaults.DEFAULT_RISK_FREE_RATE;
 
     @DecimalMin(value = "0.0", inclusive = false)
     @DecimalMax("1.0")
     @JsonAlias("maxWeight")
     @JsonProperty("max_weight")
-    private double maxWeight = 0.60;
+    private double maxWeight = RequestDefaults.DEFAULT_MAX_WEIGHT;
 
     @Positive
-    private int trials = 50_000;
+    private int trials = RequestDefaults.DEFAULT_OPTIMIZER_TRIALS;
 
-    private int seed = 42;
+    private int seed = RequestDefaults.DEFAULT_SEED;
 
     public String getObjective() {
         return objective;

@@ -36,49 +36,15 @@ import {
   optimizePortfolio,
   runMonteCarlo
 } from "./api/quantApi.js";
-
-const COLORS = ["#2563eb", "#16a34a", "#dc2626", "#f59e0b", "#7c3aed", "#0891b2"];
-
-const OPTIMIZER_OPTIONS = [
-  { value: "scipy_max_sharpe", label: "SciPy Max Sharpe" },
-  { value: "black_litterman", label: "Black-Litterman" },
-  { value: "random_search", label: "Random Search" }
-];
-
-const MARKET_PRESETS = {
-  us: {
-    label: "US Market",
-    tickers: "AAPL, MSFT, GOOGL, AMZN",
-    benchmark: "SPY",
-    riskFreeRate: 0.04,
-    initialValue: 100000,
-    currency: "USD"
-  },
-  india: {
-    label: "Indian Market",
-    tickers: "RELIANCE, TCS, INFY, HDFCBANK",
-    benchmark: "^NSEI",
-    riskFreeRate: 0.065,
-    initialValue: 1000000,
-    currency: "INR"
-  }
-};
-
-const initialForm = {
-  market: "us",
-  optimizer: "scipy_max_sharpe",
-  tickers: "AAPL, MSFT, GOOGL, AMZN",
-  start: "2023-01-01",
-  end: "2026-01-01",
-  benchmark: "SPY",
-  riskFreeRate: 0.04,
-  maxWeight: 0.6,
-  trials: 12000,
-  frontierPoints: 8,
-  monteCarloDays: 252,
-  monteCarloSimulations: 600,
-  initialValue: 100000
-};
+import {
+  COLORS,
+  DEFAULT_ANALYSIS_SEED,
+  DEFAULT_FORM,
+  FRONTIER_TRIAL_DIVISOR,
+  MARKET_PRESETS,
+  MIN_FRONTIER_TRIALS,
+  OPTIMIZER_OPTIONS
+} from "./config/appConfig.js";
 
 function parseTickers(value) {
   return value
@@ -134,7 +100,7 @@ function toMonteCarloData(simulation) {
 }
 
 export function App() {
-  const [form, setForm] = useState(initialForm);
+  const [form, setForm] = useState(DEFAULT_FORM);
   const [status, setStatus] = useState({ backend: "checking", quantEngine: "checking" });
   const [optimization, setOptimization] = useState(null);
   const [risk, setRisk] = useState(null);
@@ -204,7 +170,7 @@ export function App() {
         riskFreeRate: Number(form.riskFreeRate),
         maxWeight: Number(form.maxWeight),
         trials: Number(form.trials),
-        seed: 42
+        seed: DEFAULT_ANALYSIS_SEED
       });
       setOptimization(optimized);
 
@@ -220,8 +186,8 @@ export function App() {
           riskFreeRate: Number(form.riskFreeRate),
           maxWeight: Number(form.maxWeight),
           points: Number(form.frontierPoints),
-          trials: Math.max(2000, Math.floor(Number(form.trials) / 2)),
-          seed: 42
+          trials: Math.max(MIN_FRONTIER_TRIALS, Math.floor(Number(form.trials) / FRONTIER_TRIAL_DIVISOR)),
+          seed: DEFAULT_ANALYSIS_SEED
         }),
         runMonteCarlo({
           ...marketBase,
@@ -229,7 +195,7 @@ export function App() {
           days: Number(form.monteCarloDays),
           simulations: Number(form.monteCarloSimulations),
           initialValue: Number(form.initialValue),
-          seed: 42
+          seed: DEFAULT_ANALYSIS_SEED
         })
       ]);
 
